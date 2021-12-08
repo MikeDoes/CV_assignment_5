@@ -64,7 +64,8 @@ def grid_points(img, nPointsX, nPointsY, border):
             vPoints[counter_g][0] = x
             vPoints[counter_g][1] = y
             counter_g += 1
-
+    
+    #CLEARED FOR DEBUGGING
     return vPoints
 
 
@@ -83,7 +84,7 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     orientation = np.arctan2(grad_x, grad_y) * 180 / np.pi
 
     _, bin_edges_orientation = np.histogram(orientation, bins=nBins)
-    bin_edges_orientation = np.array([i * 45 for i in range(9)])
+    #bin_edges_orientation = np.array([i * 45 for i in range(9)])
 
     descriptors = (
         []
@@ -109,10 +110,11 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     descriptors = np.asarray(
         descriptors
     )  # [nPointsX*nPointsY, 128], descriptor for the current image (100 grid points)
-
+    
     # Checking that we do have the right shape
     descriptors = np.reshape(descriptors, (vPoints.shape[0], 128))
 
+    #CLEARED FOR DEBUGGING
     return descriptors
 
 
@@ -148,8 +150,6 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
         # opens all images, creates the edges using HOG and then returns the centers
 
         vPoints = grid_points(img, nPointsX, nPointsY, border)
-        print('vPoints',vPoints)
-        print('vPoints shape',vPoints.shape)
         descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
         vFeatures += [descriptors]
 
@@ -161,6 +161,9 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
     print("clustering ...")
     kmeans_res = KMeans(n_clusters=k, max_iter=numiter).fit(vFeatures)
     vCenters = kmeans_res.cluster_centers_  # [k, 128]
+
+
+    #CLEARED FOR DEBUGGING, REUSINE CLEAREd FUNCTIONS
     return vCenters
 
 
@@ -172,14 +175,15 @@ def bow_histogram(vFeatures, vCenters):
     """
 
     # TODO
+    
     histo = np.zeros(vCenters.shape[0])
     for descriptor in vFeatures:
-        dist = np.linalg.norm(vCenters - descriptor)
+        dist = np.linalg.norm(vCenters - descriptor, axis=1)
         chosen_cluster_center = np.argmin(dist)
         histo[chosen_cluster_center] += 1
 
     # Return a histogram based on the cluster centers
-
+    # Error was in labeling np.linalg norm with axis = 0 instea of 1
     return histo
 
 
@@ -235,9 +239,9 @@ def bow_recognition_nearest(histogram, vBoWPos, vBoWNeg):
     print('Histogram', histogram)
     print('Rest of items in set', DistNeg) """
 
-    DistNeg = np.min(np.linalg.norm(vBoWNeg - histogram))
+    DistNeg = np.min(np.linalg.norm(vBoWNeg - histogram, axis= 1))
     
-    DistPos = np.min(np.linalg.norm(vBoWPos - histogram))
+    DistPos = np.min(np.linalg.norm(vBoWPos - histogram, axis =1))
 
 
     if DistPos < DistNeg:
@@ -261,9 +265,7 @@ if __name__ == "__main__":
 
     print("creating codebook ...")
     vCenters = create_codebook(nameDirPos_train, nameDirNeg_train, k, numiter)
-    print('vCenters', vCenters)
-    print('vCenters shape', vCenters.shape)
-
+    
     print("creating bow histograms (pos) ...")
     vBoWPos = create_bow_histograms(nameDirPos_train, vCenters)
     print("creating bow histograms (neg) ...")
