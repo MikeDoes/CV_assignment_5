@@ -94,7 +94,10 @@ class Vgg(nn.Module):
         print('X Shape after step 4', x.shape)
         x = self.conv_block5(x)
         print('X Shape after step 5', x.shape)
+        x = x.view(-1, x.shape[1])
+        
         score = self.classifier(x)
+
 
         return score
 
