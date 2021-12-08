@@ -18,9 +18,6 @@ args = parser.parse_args()
 ###################################
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# devide = torch.device('cpu')
-
-
 
 
 def test(args):

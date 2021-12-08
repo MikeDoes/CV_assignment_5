@@ -1,4 +1,6 @@
 import numpy as np
+from numpy.core.fromnumeric import argmax
+from numpy.lib.function_base import select
 import cv2
 import glob
 import os
@@ -44,11 +46,26 @@ def grid_points(img, nPointsX, nPointsY, border):
     vPoints = None  # numpy array, [nPointsX*nPointsY, 2]
 
     # todo
-    ...
+    vPoints = np.zeros(nPointsX * nPointsY, 2)
+    w, h = img.shape
+    
+    # Are these integers? Should we make x Points integers
+    mult_x = (w - border - 1) / nPointsX
+    
+    mult_y = (h - border - 1) / nPointsY
 
+    xPoints = [i * mult_x + 8 for i in range(nPointsX)]
+    yPoints = [i * mult_y + 8 for i in range(nPointsY)]
+    #Wrap around i*mult_x + 8 the term int
+
+    counter_g = 0
+    for x in xPoints:
+        for y in yPoints:
+            vPoints[counter_g][0] = x
+            vPoints[counter_g][1] = y
+            counter_g += 1
 
     return vPoints
-
 
 
 def descriptors_hog(img, vPoints, cellWidth, cellHeight):
@@ -56,19 +73,44 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     w = cellWidth
     h = cellHeight
 
+    # to calculate the derivatives from an image
     grad_x = cv2.Sobel(img, cv2.CV_16S, dx=1, dy=0, ksize=1)
     grad_y = cv2.Sobel(img, cv2.CV_16S, dx=0, dy=1, ksize=1)
 
-    descriptors = []  # list of descriptors for the current image, each entry is one 128-d vector for a grid point
-    for i in range(len(vPoints)):
-        # todo
-        ...
+    # What is cv2.CV_16S? a numerical type in CV
 
+    # tan^-1(dy  / dx)
+    orientation = np.divide(grad_y, grad_x)
+    orientation = np.arctan(orientation)
 
-    descriptors = np.asarray(descriptors) # [nPointsX*nPointsY, 128], descriptor for the current image (100 grid points)
+    _, bin_edges_orientation = np.histogram(orientation, bins=8)
+
+    descriptors = (
+        []
+    )  # list of descriptors for the current image, each entry is one 128-d vector for a grid point
+
+    for point in vPoints:
+        #nPointsX * nPointsY
+        point_descriptor = []
+        for pixel_x in range(w):
+            #4 width
+            for pixel_y in range(h):
+                #4 height
+                selection = orientation[point - 2 + pixel_x, point - 2 + pixel_y]
+                #8 for histogram size of 8 bins
+                histogram, _ = np.histogram(selection, bins=bin_edges_orientation)
+                point_descriptor += [histogram]
+
+        descriptors += [point_descriptor]
+
+    descriptors = np.asarray(
+        descriptors
+    )  # [nPointsX*nPointsY, 128], descriptor for the current image (100 grid points)
+    
+    #Checking that we do have the right shape
+    descriptors = np.reshape(descriptors, (vPoints.shape[0], 128))
+    
     return descriptors
-
-
 
 
 def create_codebook(nameDirPos, nameDirNeg, k, numiter):
@@ -79,8 +121,8 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
     :param numiter: maximum iteration numbers for kmeans clustering
     :return: vCenters: center of kmeans clusters, numpy array, [k, 128]
     """
-    vImgNames = sorted(glob.glob(os.path.join(nameDirPos, '*.png')))
-    vImgNames = vImgNames + sorted(glob.glob(os.path.join(nameDirNeg, '*.png')))
+    vImgNames = sorted(glob.glob(os.path.join(nameDirPos, "*.png")))
+    vImgNames = vImgNames + sorted(glob.glob(os.path.join(nameDirNeg, "*.png")))
 
     nImgs = len(vImgNames)
 
@@ -90,7 +132,8 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
     nPointsY = 10
     border = 8
 
-    vFeatures = []  # list for all features of all images (each feature: 128-d, 16 histograms containing 8 bins)
+    vFeatures = []
+     # list for all features of all images (each feature: 128-d, 16 histograms containing 8 bins)
     # Extract features for all image
     for i in tqdm(range(nImgs)):
         # print('processing image {} ...'.format(i+1))
@@ -99,16 +142,18 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
 
         # Collect local feature points for each image, and compute a descriptor for each local feature point
         # todo
-        ...
-
+        #opens all images, creates the edges using HOG and then returns the centers
+        
+        vPoints = grid_points(img, nPointsX, nPointsY, border)
+        descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
+        vFeatures += descriptors
 
     vFeatures = np.asarray(vFeatures)  # [n_imgs, n_vPoints, 128]
     vFeatures = vFeatures.reshape(-1, vFeatures.shape[-1])  # [n_imgs*n_vPoints, 128]
-    print('number of extracted features: ', len(vFeatures))
-
+    print("number of extracted features: ", len(vFeatures))
 
     # Cluster the features using K-Means
-    print('clustering ...')
+    print("clustering ...")
     kmeans_res = KMeans(n_clusters=k, max_iter=numiter).fit(vFeatures)
     vCenters = kmeans_res.cluster_centers_  # [k, 128]
     return vCenters
@@ -120,15 +165,17 @@ def bow_histogram(vFeatures, vCenters):
     :param vCenters: NxD matrix containing N cluster centers of dim. D
     :return: histo: N-dim. numpy vector containing the resulting BoW activation histogram.
     """
-    histo = None
-
-    # todo
-    ...
+    
+    # TODO
+    histo = np.zeros(vCenters.shape[0])
+    for descriptor in vFeatures:
+        dist = np.linalg.norm(vCenters - descriptor)
+        chosen_cluster_center = np.argmin(dist)
+        histo[chosen_cluster_center] += 1
+    
+    #Return a histogram based on the cluster centers
 
     return histo
-
-
-
 
 
 def create_bow_histograms(nameDir, vCenters):
@@ -137,7 +184,7 @@ def create_bow_histograms(nameDir, vCenters):
     :param vCenters: kmeans cluster centers, [k, 128] (k is the number of cluster centers)
     :return: vBoW: matrix, [n_imgs, k]
     """
-    vImgNames = sorted(glob.glob(os.path.join(nameDir, '*.png')))
+    vImgNames = sorted(glob.glob(os.path.join(nameDir, "*.png")))
     nImgs = len(vImgNames)
 
     cellWidth = 4
@@ -152,17 +199,18 @@ def create_bow_histograms(nameDir, vCenters):
         # print('processing image {} ...'.format(i + 1))
         img = cv2.imread(vImgNames[i])  # [172, 208, 3]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # [h, w]
+        #TODO 
 
-        # todo
-        ...
-
+        vPoints = grid_points(img, nPointsX, nPointsY, border)
+        descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
+        #Adding to the histogram
+        vBoW += bow_histogram(descriptors, vCenters)
 
     vBoW = np.asarray(vBoW)  # [n_imgs, k]
     return vBoW
 
 
-
-def bow_recognition_nearest(histogram,vBoWPos,vBoWNeg):
+def bow_recognition_nearest(histogram, vBoWPos, vBoWNeg):
     """
     :param histogram: bag-of-words histogram of a test image, [1, k]
     :param vBoWPos: bag-of-words histograms of positive training images, [n_imgs, k]
@@ -173,55 +221,53 @@ def bow_recognition_nearest(histogram,vBoWPos,vBoWNeg):
     DistPos, DistNeg = None, None
 
     # Find the nearest neighbor in the positive and negative sets and decide based on this neighbor
-    # todo
-    ...
+    # ToDo
+    
+    DistNeg = np.min(np.linalg.norm(vBoWNeg - histogram))
+    DistPos = np.min(np.linalg.norm(vBoWPos - histogram))
 
-    if (DistPos < DistNeg):
+    if DistPos < DistNeg:
         sLabel = 1
     else:
         sLabel = 0
     return sLabel
 
 
-
-
-
-if __name__ == '__main__':
-    nameDirPos_train = 'data/data_bow/cars-training-pos'
-    nameDirNeg_train = 'data/data_bow/cars-training-neg'
-    nameDirPos_test = 'data/data_bow/cars-testing-pos'
-    nameDirNeg_test = 'data/data_bow/cars-testing-neg'
-
+if __name__ == "__main__":
+    nameDirPos_train = "data/data_bow/cars-training-pos"
+    nameDirNeg_train = "data/data_bow/cars-training-neg"
+    nameDirPos_test = "data/data_bow/cars-testing-pos"
+    nameDirNeg_test = "data/data_bow/cars-testing-neg"
 
     k = None  # todo
     numiter = None  # todo
 
-    print('creating codebook ...')
+    print("creating codebook ...")
     vCenters = create_codebook(nameDirPos_train, nameDirNeg_train, k, numiter)
 
-    print('creating bow histograms (pos) ...')
+    print("creating bow histograms (pos) ...")
     vBoWPos = create_bow_histograms(nameDirPos_train, vCenters)
-    print('creating bow histograms (neg) ...')
+    print("creating bow histograms (neg) ...")
     vBoWNeg = create_bow_histograms(nameDirNeg_train, vCenters)
 
     # test pos samples
-    print('creating bow histograms for test set (pos) ...')
+    print("creating bow histograms for test set (pos) ...")
     vBoWPos_test = create_bow_histograms(nameDirPos_test, vCenters)  # [n_imgs, k]
     result_pos = 0
-    print('testing pos samples ...')
+    print("testing pos samples ...")
     for i in range(vBoWPos_test.shape[0]):
-        cur_label = bow_recognition_nearest(vBoWPos_test[i:(i+1)], vBoWPos, vBoWNeg)
+        cur_label = bow_recognition_nearest(vBoWPos_test[i : (i + 1)], vBoWPos, vBoWNeg)
         result_pos = result_pos + cur_label
     acc_pos = result_pos / vBoWPos_test.shape[0]
-    print('test pos sample accuracy:', acc_pos)
+    print("test pos sample accuracy:", acc_pos)
 
     # test neg samples
-    print('creating bow histograms for test set (neg) ...')
+    print("creating bow histograms for test set (neg) ...")
     vBoWNeg_test = create_bow_histograms(nameDirNeg_test, vCenters)  # [n_imgs, k]
     result_neg = 0
-    print('testing neg samples ...')
+    print("testing neg samples ...")
     for i in range(vBoWNeg_test.shape[0]):
-        cur_label = bow_recognition_nearest(vBoWNeg_test[i:(i + 1)], vBoWPos, vBoWNeg)
+        cur_label = bow_recognition_nearest(vBoWNeg_test[i : (i + 1)], vBoWPos, vBoWNeg)
         result_neg = result_neg + cur_label
     acc_neg = 1 - result_neg / vBoWNeg_test.shape[0]
-    print('test neg sample accuracy:', acc_neg)
+    print("test neg sample accuracy:", acc_neg)
