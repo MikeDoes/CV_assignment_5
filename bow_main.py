@@ -46,17 +46,17 @@ def grid_points(img, nPointsX, nPointsY, border):
     vPoints = None  # numpy array, [nPointsX*nPointsY, 2]
 
     # todo
-    vPoints = np.zeros(nPointsX * nPointsY, 2)
+    vPoints = np.zeros((nPointsX * nPointsY, 2))
     w, h = img.shape
-    
+
     # Are these integers? Should we make x Points integers
     mult_x = (w - border - 1) / nPointsX
-    
+
     mult_y = (h - border - 1) / nPointsY
 
     xPoints = [i * mult_x + 8 for i in range(nPointsX)]
     yPoints = [i * mult_y + 8 for i in range(nPointsY)]
-    #Wrap around i*mult_x + 8 the term int
+    # Wrap around i*mult_x + 8 the term int
 
     counter_g = 0
     for x in xPoints:
@@ -80,24 +80,27 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     # What is cv2.CV_16S? a numerical type in CV
 
     # tan^-1(dy  / dx)
-    orientation = np.divide(grad_y, grad_x)
-    orientation = np.arctan(orientation)
+    orientation = np.arctan2(grad_x, grad_y) * 180 / np.pi
 
-    _, bin_edges_orientation = np.histogram(orientation, bins=8)
+    _, bin_edges_orientation = np.histogram(orientation, bins=nBins)
+    bin_edges_orientation = np.array([i * 45 for i in range(9)])
 
     descriptors = (
         []
     )  # list of descriptors for the current image, each entry is one 128-d vector for a grid point
 
     for point in vPoints:
-        #nPointsX * nPointsY
+        # nPointsX * nPointsY
         point_descriptor = []
         for pixel_x in range(w):
-            #4 width
+            # 4 width
             for pixel_y in range(h):
-                #4 height
-                selection = orientation[point - 2 + pixel_x, point - 2 + pixel_y]
-                #8 for histogram size of 8 bins
+                # 4 height
+                x_coord = int(point[0] - 2 + pixel_x)
+                y_coord = int(point[1] - 2 + pixel_y)
+                
+                selection = orientation[x_coord, y_coord]
+                # 8 for histogram size of 8 bins
                 histogram, _ = np.histogram(selection, bins=bin_edges_orientation)
                 point_descriptor += [histogram]
 
@@ -106,10 +109,10 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     descriptors = np.asarray(
         descriptors
     )  # [nPointsX*nPointsY, 128], descriptor for the current image (100 grid points)
-    
-    #Checking that we do have the right shape
+
+    # Checking that we do have the right shape
     descriptors = np.reshape(descriptors, (vPoints.shape[0], 128))
-    
+
     return descriptors
 
 
@@ -133,7 +136,7 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
     border = 8
 
     vFeatures = []
-     # list for all features of all images (each feature: 128-d, 16 histograms containing 8 bins)
+    # list for all features of all images (each feature: 128-d, 16 histograms containing 8 bins)
     # Extract features for all image
     for i in tqdm(range(nImgs)):
         # print('processing image {} ...'.format(i+1))
@@ -142,11 +145,11 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
 
         # Collect local feature points for each image, and compute a descriptor for each local feature point
         # todo
-        #opens all images, creates the edges using HOG and then returns the centers
-        
+        # opens all images, creates the edges using HOG and then returns the centers
+
         vPoints = grid_points(img, nPointsX, nPointsY, border)
         descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
-        vFeatures += descriptors
+        vFeatures += [descriptors]
 
     vFeatures = np.asarray(vFeatures)  # [n_imgs, n_vPoints, 128]
     vFeatures = vFeatures.reshape(-1, vFeatures.shape[-1])  # [n_imgs*n_vPoints, 128]
@@ -165,15 +168,15 @@ def bow_histogram(vFeatures, vCenters):
     :param vCenters: NxD matrix containing N cluster centers of dim. D
     :return: histo: N-dim. numpy vector containing the resulting BoW activation histogram.
     """
-    
+
     # TODO
     histo = np.zeros(vCenters.shape[0])
     for descriptor in vFeatures:
         dist = np.linalg.norm(vCenters - descriptor)
         chosen_cluster_center = np.argmin(dist)
         histo[chosen_cluster_center] += 1
-    
-    #Return a histogram based on the cluster centers
+
+    # Return a histogram based on the cluster centers
 
     return histo
 
@@ -199,12 +202,13 @@ def create_bow_histograms(nameDir, vCenters):
         # print('processing image {} ...'.format(i + 1))
         img = cv2.imread(vImgNames[i])  # [172, 208, 3]
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # [h, w]
-        #TODO 
+        # TODO
 
         vPoints = grid_points(img, nPointsX, nPointsY, border)
         descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
-        #Adding to the histogram
-        vBoW += bow_histogram(descriptors, vCenters)
+        # Adding to the histogram
+        
+        vBoW += [bow_histogram(descriptors, vCenters)]
 
     vBoW = np.asarray(vBoW)  # [n_imgs, k]
     return vBoW
@@ -222,7 +226,7 @@ def bow_recognition_nearest(histogram, vBoWPos, vBoWNeg):
 
     # Find the nearest neighbor in the positive and negative sets and decide based on this neighbor
     # ToDo
-    
+
     DistNeg = np.min(np.linalg.norm(vBoWNeg - histogram))
     DistPos = np.min(np.linalg.norm(vBoWPos - histogram))
 
@@ -239,8 +243,11 @@ if __name__ == "__main__":
     nameDirPos_test = "data/data_bow/cars-testing-pos"
     nameDirNeg_test = "data/data_bow/cars-testing-neg"
 
-    k = None  # todo
-    numiter = None  # todo
+    # TODO
+    k = 12
+    numiter = 10
+
+    # TODO END
 
     print("creating codebook ...")
     vCenters = create_codebook(nameDirPos_train, nameDirNeg_train, k, numiter)
