@@ -54,8 +54,8 @@ def grid_points(img, nPointsX, nPointsY, border):
 
     mult_y = (h - border - 1) / nPointsY
 
-    xPoints = [i * mult_x + 8 for i in range(nPointsX)]
-    yPoints = [i * mult_y + 8 for i in range(nPointsY)]
+    xPoints = [int(i * mult_x + 8) for i in range(nPointsX)]
+    yPoints = [int(i * mult_y + 8) for i in range(nPointsY)]
     # Wrap around i*mult_x + 8 the term int
 
     counter_g = 0
@@ -148,6 +148,8 @@ def create_codebook(nameDirPos, nameDirNeg, k, numiter):
         # opens all images, creates the edges using HOG and then returns the centers
 
         vPoints = grid_points(img, nPointsX, nPointsY, border)
+        print('vPoints',vPoints)
+        print('vPoints shape',vPoints.shape)
         descriptors = descriptors_hog(img, vPoints, cellWidth, cellHeight)
         vFeatures += [descriptors]
 
@@ -227,8 +229,16 @@ def bow_recognition_nearest(histogram, vBoWPos, vBoWNeg):
     # Find the nearest neighbor in the positive and negative sets and decide based on this neighbor
     # ToDo
 
+    #It shows that all elements in negative have 100, 0,0,0,0,0,0,0 Histograms
+    """ DistNeg = np.argmin(np.linalg.norm(vBoWNeg - histogram))
+    print('Item with the smallest distance', vBoWNeg[DistNeg])
+    print('Histogram', histogram)
+    print('Rest of items in set', DistNeg) """
+
     DistNeg = np.min(np.linalg.norm(vBoWNeg - histogram))
+    
     DistPos = np.min(np.linalg.norm(vBoWPos - histogram))
+
 
     if DistPos < DistNeg:
         sLabel = 1
@@ -244,13 +254,15 @@ if __name__ == "__main__":
     nameDirNeg_test = "data/data_bow/cars-testing-neg"
 
     # TODO
-    k = 12
-    numiter = 10
+    k = 20
+    numiter = 99
 
     # TODO END
 
     print("creating codebook ...")
     vCenters = create_codebook(nameDirPos_train, nameDirNeg_train, k, numiter)
+    print('vCenters', vCenters)
+    print('vCenters shape', vCenters.shape)
 
     print("creating bow histograms (pos) ...")
     vBoWPos = create_bow_histograms(nameDirPos_train, vCenters)
