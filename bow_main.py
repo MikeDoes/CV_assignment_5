@@ -75,6 +75,7 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     h = cellHeight
 
     # to calculate the derivatives from an image
+    print('PRINTING IMAGE')
     print(img)
     print(img.shape)
     print(type(img))
