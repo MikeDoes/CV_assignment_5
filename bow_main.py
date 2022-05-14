@@ -75,6 +75,9 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
     h = cellHeight
 
     # to calculate the derivatives from an image
+    print(img)
+    print(img.shape)
+    print(type(img))
     grad_x = cv2.Sobel(img, cv2.CV_16S, dx=1, dy=0, ksize=1)
     grad_y = cv2.Sobel(img, cv2.CV_16S, dx=0, dy=1, ksize=1)
 
