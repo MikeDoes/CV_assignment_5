@@ -76,8 +76,11 @@ def descriptors_hog(img, vPoints, cellWidth, cellHeight):
 
     # to calculate the derivatives from an image
     
+    print('image', img)
     grad_x = cv2.Sobel(img, cv2.CV_16S, dx=1, dy=0, ksize=1)
     grad_y = cv2.Sobel(img, cv2.CV_16S, dx=0, dy=1, ksize=1)
+    print('Grad x', grad_x.shape)
+    print('Grand y', grad_y.shape)
 
     # What is cv2.CV_16S? a numerical type in CV
 
